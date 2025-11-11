@@ -42,12 +42,27 @@ function get(sql, params = []) {
 }
 
 // -------------------- Init schema & seeds --------------------
-const schemaPath = path.join(__dirname, '..', 'db', 'schema.sql');
+// -------------------- Init schema & seeds --------------------
+// Try to locate schema.sql from multiple possible locations
+const candidatePaths = [
+  path.join(__dirname, '..', 'db', 'schema.sql'),       // when db is one folder up
+  path.join(__dirname, 'db', 'schema.sql'),             // when db is inside same folder
+  path.join(process.cwd(), 'db', 'schema.sql'),         // when db is in repo root
+  path.join(process.cwd(), 'server', 'db', 'schema.sql') // when db is under /server/db
+];
+
+let schemaPath = candidatePaths.find(p => fs.existsSync(p));
+
+if (!schemaPath) {
+  console.error('⚠️ schema.sql not found. Tried paths:', candidatePaths);
+  throw new Error('Database schema file (db/schema.sql) not found.');
+}
+
 const schema = fs.readFileSync(schemaPath, 'utf-8');
 db.exec(schema, async (err) => {
   if (err) console.error('Schema error:', err);
 
-  const u = await get('SELECT id FROM users WHERE email=?', ['admin@nits.ac.in']);
+  const u = await get('SELECT id FROM users WHERE email=?', ['admin@nits.ac.in']).catch(()=>null);
   if (!u) {
     const hash = bcrypt.hashSync('admin123', 10);
     await run('INSERT INTO users(email,password_hash,role) VALUES(?,?,?)', [
@@ -55,21 +70,21 @@ db.exec(schema, async (err) => {
     ]);
   }
 
-  const qcount = await get('SELECT COUNT(*) as c FROM mcq_questions');
+  const qcount = await get('SELECT COUNT(*) as c FROM mcq_questions').catch(()=>({c:0}));
   if (qcount.c === 0) {
-    const p = path.join(__dirname, '..', 'db', 'seed_round1.sql');
+    const p = path.join(path.dirname(schemaPath), 'seed_round1.sql');
     if (fs.existsSync(p)) db.exec(fs.readFileSync(p, 'utf-8'));
   }
 
-  const pcount = await get('SELECT COUNT(*) as c FROM problems_round2');
+  const pcount = await get('SELECT COUNT(*) as c FROM problems_round2').catch(()=>({c:0}));
   if (pcount.c === 0) {
-    const p = path.join(__dirname, '..', 'db', 'seed_problems.sql');
+    const p = path.join(path.dirname(schemaPath), 'seed_problems.sql');
     if (fs.existsSync(p)) db.exec(fs.readFileSync(p, 'utf-8'));
   }
 
-  const scount = await get('SELECT COUNT(*) as c FROM schedule');
+  const scount = await get('SELECT COUNT(*) as c FROM schedule').catch(()=>({c:0}));
   if (scount.c === 0) {
-    const p = path.join(__dirname, '..', 'db', 'seed_schedule.sql');
+    const p = path.join(path.dirname(schemaPath), 'seed_schedule.sql');
     if (fs.existsSync(p)) db.exec(fs.readFileSync(p, 'utf-8'));
   }
 
@@ -80,9 +95,9 @@ db.exec(schema, async (err) => {
   }
 
   await run('CREATE UNIQUE INDEX IF NOT EXISTS idx_sub2_team ON submissions_round2(team_id)').catch(()=>{});
-
   console.log('✅ Database ready.');
 });
+
 
 // -------------------- File Uploads --------------------
 const storage = multer.diskStorage({
