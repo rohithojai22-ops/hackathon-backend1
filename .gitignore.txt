@@ -1,4 +1,7 @@
+# Node and environment files
 node_modules/
+.env
+
+# SQLite DB
 db/*.sqlite
 uploads/
-.env
