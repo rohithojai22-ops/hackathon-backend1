@@ -8,7 +8,8 @@ import bcrypt from 'bcryptjs';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
-import Database from 'better-sqlite3';
+import sqlite3 from 'sqlite3';
+import { open } from 'sqlite';
 import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -32,27 +33,34 @@ if (!fs.existsSync(dbDir)) {
   console.log(`📁 Created missing directory: ${dbDir}`);
 }
 
-const db = new Database(DB_PATH);
+// Open SQLite database asynchronously
+const db = await open({
+  filename: DB_PATH,
+  driver: sqlite3.Database
+});
 
-function run(sql, params = []) {
+// Async helper functions
+async function run(sql, params = []) {
   try {
-    return db.prepare(sql).run(params);
+    return await db.run(sql, params);
   } catch (err) {
     console.error('DB RUN ERROR:', err);
     throw err;
   }
 }
-function all(sql, params = []) {
+
+async function all(sql, params = []) {
   try {
-    return db.prepare(sql).all(params);
+    return await db.all(sql, params);
   } catch (err) {
     console.error('DB ALL ERROR:', err);
     throw err;
   }
 }
-function get(sql, params = []) {
+
+async function get(sql, params = []) {
   try {
-    return db.prepare(sql).get(params);
+    return await db.get(sql, params);
   } catch (err) {
     console.error('DB GET ERROR:', err);
     throw err;
