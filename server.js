@@ -1,3 +1,4 @@
+// server.js (updated)
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
@@ -24,7 +25,7 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use('/datasets', express.static(path.join(__dirname, '..', 'public', 'datasets')));
 
 // -------------------- DB Helpers --------------------
-// ✅ Ensure DB directory exists automatically before opening
+// Ensure DB directory exists automatically before opening
 const dbDir = path.dirname(DB_PATH);
 if (!fs.existsSync(dbDir)) {
   fs.mkdirSync(dbDir, { recursive: true });
@@ -32,7 +33,6 @@ if (!fs.existsSync(dbDir)) {
 }
 
 const db = new Database(DB_PATH);
-
 
 function run(sql, params = []) {
   try {
@@ -93,6 +93,7 @@ for (const [table, seedFile] of tables) {
   }
 }
 
+// Ensure event_settings has the expected keys (this is safe to run each start)
 ['round1_start_iso', 'round1_end_iso', 'round2_start_iso', 'round2_end_iso'].forEach(k => {
   const row = get('SELECT value FROM event_settings WHERE key=?', [k]);
   if (!row) run('INSERT INTO event_settings(key,value) VALUES(?,?)', [k, '']);
@@ -103,7 +104,11 @@ console.log('✅ Database ready.');
 
 // -------------------- File Uploads --------------------
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, path.join(__dirname, 'uploads')),
+  destination: (req, file, cb) => {
+    const upl = path.join(__dirname, 'uploads');
+    if (!fs.existsSync(upl)) fs.mkdirSync(upl, { recursive: true });
+    cb(null, upl);
+  },
   filename: (req, file, cb) => cb(null, Date.now() + '-' + file.originalname),
 });
 const upload = multer({ storage });
@@ -135,11 +140,17 @@ function getSetting(key) {
   return row ? row.value || '' : '';
 }
 function setSettings(obj = {}) {
-  for (const [k, v] of Object.entries(obj)) {
-    const row = get('SELECT value FROM event_settings WHERE key=?', [k]);
-    if (row) run('UPDATE event_settings SET value=? WHERE key=?', [v ?? '', k]);
-    else run('INSERT INTO event_settings(key,value) VALUES(?,?)', [k, v ?? '']);
-  }
+  // upsert using transactions for consistency
+  const insert = db.prepare('INSERT INTO event_settings(key,value) VALUES (?,?)');
+  const update = db.prepare('UPDATE event_settings SET value=? WHERE key=?');
+  const tx = db.transaction((entries) => {
+    for (const [k, v] of Object.entries(entries)) {
+      const row = get('SELECT key FROM event_settings WHERE key=?', [k]);
+      if (row) update.run(v ?? '', k);
+      else insert.run(k, v ?? '');
+    }
+  });
+  tx(obj);
 }
 function parseISO(iso) {
   if (!iso) return null;
@@ -302,6 +313,46 @@ app.post('/api/admin/compute-shortlist', auth('admin'), (req, res) => {
 
   res.json({ ok: true });
 });
+
+// -------------------- NEW: Admin event-settings GET/PUT --------------------
+// GET current settings (admin-only) - useful for admin UI to prefill fields
+app.get('/api/admin/event-settings', auth('admin'), (req, res) => {
+  try {
+    const rows = all('SELECT key, value FROM event_settings');
+    const obj = {};
+    rows.forEach(r => obj[r.key] = r.value);
+    // return object of keys so frontend can populate inputs
+    res.json(obj);
+  } catch (err) {
+    console.error('Failed to fetch admin event-settings:', err);
+    res.status(500).json({ error: 'Failed to fetch settings' });
+  }
+});
+
+// PUT to update multiple settings (admin-only)
+app.put('/api/admin/event-settings', auth('admin'), (req, res) => {
+  try {
+    // Expect body like:
+    // { round1_start_iso: "...", round1_end_iso: "...", round2_start_iso: "...", round2_end_iso: "..." }
+    const allowedKeys = ['round1_start_iso', 'round1_end_iso', 'round2_start_iso', 'round2_end_iso'];
+    const payload = {};
+    for (const k of allowedKeys) {
+      if (Object.prototype.hasOwnProperty.call(req.body, k)) {
+        payload[k] = req.body[k] ?? '';
+      }
+    }
+    if (Object.keys(payload).length === 0) {
+      return res.status(400).json({ error: 'No valid settings provided' });
+    }
+    setSettings(payload);
+    res.json({ ok: true, message: 'Settings saved' });
+  } catch (err) {
+    console.error('Failed to save admin event-settings:', err);
+    res.status(500).json({ error: 'Failed to save settings' });
+  }
+});
+
+// -------------------- Extra public info endpoint --------------------
 app.get('/api/event-info', (req, res) => {
   res.json({
     prizes: {
