@@ -5,19 +5,19 @@
   "type": "module",
   "scripts": {
     "start": "node server.js",
-    "postinstall": "npm rebuild sqlite3 --build-from-source"
+    "postinstall": "npm install sqlite3 --build-from-source || true"
   },
   "engines": {
     "node": "20.x"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
+    "better-sqlite3": "^12.4.1",
     "body-parser": "^1.20.2",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
     "jsonwebtoken": "^9.0.2",
-    "multer": "^1.4.5-lts.1",
-    "sqlite3": "^5.1.7"
+    "multer": "^1.4.5-lts.1"
   }
 }
