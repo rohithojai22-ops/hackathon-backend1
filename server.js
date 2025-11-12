@@ -31,9 +31,11 @@ app.use(cors({
     'http://localhost:5173',
     'http://localhost:3000',
     'https://hackathon-frontend.vercel.app',
-    '*'
+    'https://hackathon-frontend-sage.vercel.app'
   ],
-  credentials: true
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
 app.use(bodyParser.json());
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
