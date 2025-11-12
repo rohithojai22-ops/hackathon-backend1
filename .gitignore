@@ -1,4 +1,17 @@
-﻿node_modules/
-db/*.sqlite
-uploads/
+﻿# Dependency folder
+node_modules/
+
+# Local environment variables
 .env
+
+# SQLite database files (we don’t push the actual DB file)
+db/*.sqlite
+
+# Uploaded files folder (these are generated at runtime)
+uploads/
+
+# Logs and cache
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.log
