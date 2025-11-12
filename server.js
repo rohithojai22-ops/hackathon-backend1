@@ -364,6 +364,16 @@ app.get('/api/event-info', (req, res) => {
     contact: { email: 'hackathon@nits.ac.in' }
   });
 });
+// Temporary debug route to verify users table content
+app.get('/debug-users', async (req, res) => {
+  try {
+    const users = await all('SELECT id, email, role FROM users');
+    res.json(users);
+  } catch (err) {
+    console.error('Debug route error:', err);
+    res.status(500).json({ error: 'Failed to fetch users' });
+  }
+});
 
 // -------------------- Start Server --------------------
 app.listen(PORT, () => console.log(`🚀 Server running on http://localhost:${PORT}`));
