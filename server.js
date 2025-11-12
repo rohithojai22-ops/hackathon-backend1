@@ -359,6 +359,27 @@ app.put('/api/admin/event-settings', auth('admin'), (req, res) => {
     res.status(500).json({ error: 'Failed to save settings' });
   }
 });
+// -------------------- SCHEDULE --------------------
+app.get('/api/schedule', async (req, res) => {
+  const rows = await all('SELECT * FROM schedule ORDER BY date ASC, id ASC');
+  res.json(rows);
+});
+app.post('/api/admin/schedule', auth('admin'), async (req, res) => {
+  const { round, title, description, date } = req.body || {};
+  await run('INSERT INTO schedule(round,title,description,date) VALUES (?,?,?,?)',
+    [round || '', title || '', description || '', date || '']);
+  res.json({ ok: true });
+});
+app.put('/api/admin/schedule/:id', auth('admin'), async (req, res) => {
+  const { round, title, description, date } = req.body || {};
+  await run('UPDATE schedule SET round=?, title=?, description=?, date=? WHERE id=?',
+    [round || '', title || '', description || '', date || '', req.params.id]);
+  res.json({ ok: true });
+});
+app.delete('/api/admin/schedule/:id', auth('admin'), async (req, res) => {
+  await run('DELETE FROM schedule WHERE id=?', [req.params.id]);
+  res.json({ ok: true });
+});
 
 // -------------------- Extra public info endpoint --------------------
 app.get('/api/event-info', (req, res) => {
