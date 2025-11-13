@@ -19,8 +19,17 @@ router.get('/teams', auth('admin'), async (req, res) => {
 });
 
 router.delete('/teams/:id', auth('admin'), async (req, res) => {
-  await Team.findByIdAndDelete(req.params.id);
-  res.json({ ok: true });
+  try {
+    const team = await Team.findById(req.params.id);
+    if (!team) {
+      return res.status(404).json({ error: 'Team not found' });
+    }
+    await Team.findByIdAndDelete(req.params.id);
+    res.json({ ok: true, message: 'Team deleted successfully' });
+  } catch (err) {
+    console.error('Delete team error:', err);
+    res.status(400).json({ error: 'Invalid team ID' });
+  }
 });
 
 // Submissions
