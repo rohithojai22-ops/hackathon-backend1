@@ -9,7 +9,7 @@ const router = express.Router();
 
 router.get('/server-time', (req, res) => res.json({ now_iso: nowISO() }));
 
-rrouter.get('/event-settings', async (req, res) => {
+router.get('/event-settings', async (req, res) => {
   try {
     const rows = await EventSetting.find();
     const obj = {};
