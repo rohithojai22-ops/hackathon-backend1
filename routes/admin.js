@@ -16,7 +16,7 @@ const router = express.Router();
    👇 NEW PUBLIC ROUTE — NO AUTH REQUIRED
    Teams will use GET /api/event-settings
 ========================================================== */
-router.get('/event-settings-public', async (req, res) => {
+router.get('/event-settings', async (req, res) => {
   try {
     const rows = await EventSetting.find();
     const obj = {};
