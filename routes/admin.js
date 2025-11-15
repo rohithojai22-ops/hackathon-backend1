@@ -12,6 +12,26 @@ import Shortlist from '../models/Shortlist.js';
 
 const router = express.Router();
 
+/* ==========================================================
+   👇 NEW PUBLIC ROUTE — NO AUTH REQUIRED
+   Teams will use GET /api/event-settings
+========================================================== */
+router.get('/event-settings-public', async (req, res) => {
+  try {
+    const rows = await EventSetting.find();
+    const obj = {};
+    rows.forEach(r => obj[r.key] = r.value);
+    res.json(obj);
+  } catch (err) {
+    console.error('Public event settings error:', err);
+    res.status(500).json({ error: 'Failed to load event settings' });
+  }
+});
+
+/* ==========================================================
+   ADMIN ROUTES BELOW
+========================================================== */
+
 // Teams
 router.get('/teams', auth('admin'), async (req, res) => {
   const teams = await Team.find().sort({ _id: -1 });
@@ -21,9 +41,8 @@ router.get('/teams', auth('admin'), async (req, res) => {
 router.delete('/teams/:id', auth('admin'), async (req, res) => {
   try {
     const team = await Team.findById(req.params.id);
-    if (!team) {
-      return res.status(404).json({ error: 'Team not found' });
-    }
+    if (!team) return res.status(404).json({ error: 'Team not found' });
+    
     await Team.findByIdAndDelete(req.params.id);
     res.json({ ok: true, message: 'Team deleted successfully' });
   } catch (err) {
@@ -38,7 +57,7 @@ router.get('/submissions', auth('admin'), async (req, res) => {
   res.json(subs);
 });
 
-// MCQ Questions
+// MCQs
 router.get('/mcqs', auth('admin'), async (req, res) => {
   const qs = await McqQuestion.find().sort({ _id: -1 });
   res.json(qs);
@@ -121,7 +140,9 @@ router.post('/compute-shortlist', auth('admin'), async (req, res) => {
   res.json({ ok: true, message: 'Shortlist computed' });
 });
 
-// Event Settings
+// =============================
+// ADMIN EVENT SETTINGS
+// =============================
 router.get('/event-settings', auth('admin'), async (req, res) => {
   const rows = await EventSetting.find();
   const obj = {};
@@ -140,10 +161,18 @@ router.put('/event-settings', auth('admin'), async (req, res) => {
     if (payload.round1_end_iso && !parseISO(payload.round1_end_iso)) return res.status(400).json({ error: 'Invalid round1_end_iso' });
     if (payload.round1_start_iso && payload.round1_end_iso && new Date(payload.round1_start_iso) >= new Date(payload.round1_end_iso)) return res.status(400).json({ error: 'R1 start must be before end' });
     if (payload.round2_start_iso && !parseISO(payload.round2_start_iso)) return res.status(400).json({ error: 'Invalid round2_start_iso' });
+
     await setSettings(payload);
+
     const r1 = await getRound1Window();
     const r2 = await getRound2Window();
-    res.json({ ok: true, round1: { start_iso: r1.startISO, end_iso: r1.endISO }, round2: { start_iso: r2.startISO, end_iso: r2.endISO }, server_now_iso: nowISO() });
+
+    res.json({
+      ok: true,
+      round1: { start_iso: r1.startISO, end_iso: r1.endISO },
+      round2: { start_iso: r2.startISO, end_iso: r2.endISO },
+      server_now_iso: nowISO()
+    });
   } catch (err) {
     console.error('Save settings error:', err);
     res.status(500).json({ error: 'Failed to save settings' });
