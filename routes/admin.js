@@ -169,4 +169,3 @@ router.delete('/schedule/:id', auth('admin'), async (req, res) => {
 });
 
 export default router;
-
