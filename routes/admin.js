@@ -121,25 +121,13 @@ router.post('/compute-shortlist', auth('admin'), async (req, res) => {
   res.json({ ok: true, message: 'Shortlist computed' });
 });
 
-// ADMIN EVENT SETTINGS — correct format for frontend
+// Event Settings
 router.get('/event-settings', auth('admin'), async (req, res) => {
   const rows = await EventSetting.find();
   const obj = {};
   rows.forEach(r => obj[r.key] = r.value);
-
-  res.json({
-    round1: {
-      start_iso: obj.round1_start_iso || "",
-      end_iso: obj.round1_end_iso || ""
-    },
-    round2: {
-      start_iso: obj.round2_start_iso || "",
-      end_iso: obj.round2_end_iso || ""
-    }
-  });
+  res.json(obj);
 });
-
-
 
 router.put('/event-settings', auth('admin'), async (req, res) => {
   const allowedKeys = ['round1_start_iso', 'round1_end_iso', 'round2_start_iso', 'round2_end_iso'];
