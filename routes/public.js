@@ -10,10 +10,23 @@ const router = express.Router();
 router.get('/server-time', (req, res) => res.json({ now_iso: nowISO() }));
 
 router.get('/event-settings', async (req, res) => {
-  const r1 = await getRound1Window();
-  const r2 = await getRound2Window();
-  res.json({ round1: { start_iso: r1.startISO, end_iso: r1.endISO }, round2: { start_iso: r2.startISO, end_iso: r2.endISO }, server_now_iso: nowISO() });
+  try {
+    const r1 = await getRound1Window();
+    const r2 = await getRound2Window();
+
+    res.json({
+      round1_start_iso: r1.startISO || "",
+      round1_end_iso: r1.endISO || "",
+      round2_start_iso: r2.startISO || "",
+      round2_end_iso: r2.endISO || "",
+      server_now_iso: nowISO(),
+    });
+  } catch (err) {
+    console.error("Public event-settings error:", err);
+    res.status(500).json({ error: "Failed to load event settings" });
+  }
 });
+
 
 router.get('/schedule', async (req, res) => {
   const rows = await Schedule.find().sort({ date: 1, _id: 1 });
