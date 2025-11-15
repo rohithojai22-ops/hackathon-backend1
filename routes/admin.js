@@ -1,6 +1,13 @@
 import express from 'express';
 import { auth } from '../middleware/auth.js';
-import { getRound1Window, getRound2Window, nowISO, parseISO, setSettings } from '../utils/helpers.js';
+import {
+  getRound1Window,
+  getRound2Window,
+  nowISO,
+  parseISO,
+  setSettings
+} from '../utils/helpers.js';
+
 import Team from '../models/Team.js';
 import SubmissionRound2 from '../models/SubmissionRound2.js';
 import McqQuestion from '../models/McqQuestion.js';
@@ -12,7 +19,10 @@ import Shortlist from '../models/Shortlist.js';
 
 const router = express.Router();
 
-// Teams
+/* ======================================================
+   TEAM MANAGEMENT
+====================================================== */
+
 router.get('/teams', auth('admin'), async (req, res) => {
   const teams = await Team.find().sort({ _id: -1 });
   res.json(teams);
@@ -21,24 +31,29 @@ router.get('/teams', auth('admin'), async (req, res) => {
 router.delete('/teams/:id', auth('admin'), async (req, res) => {
   try {
     const team = await Team.findById(req.params.id);
-    if (!team) {
-      return res.status(404).json({ error: 'Team not found' });
-    }
+    if (!team) return res.status(404).json({ error: 'Team not found' });
+
     await Team.findByIdAndDelete(req.params.id);
     res.json({ ok: true, message: 'Team deleted successfully' });
+
   } catch (err) {
     console.error('Delete team error:', err);
     res.status(400).json({ error: 'Invalid team ID' });
   }
 });
 
-// Submissions
+/* ======================================================
+   ROUND 2 SUBMISSIONS
+====================================================== */
 router.get('/submissions', auth('admin'), async (req, res) => {
   const subs = await SubmissionRound2.find().sort({ created_at: -1 });
   res.json(subs);
 });
 
-// MCQ Questions
+/* ======================================================
+   MCQ QUESTIONS
+====================================================== */
+
 router.get('/mcqs', auth('admin'), async (req, res) => {
   const qs = await McqQuestion.find().sort({ _id: -1 });
   res.json(qs);
@@ -52,7 +67,14 @@ router.post('/mcqs', auth('admin'), async (req, res) => {
 
 router.put('/mcqs/:id', auth('admin'), async (req, res) => {
   const { question, opt_a, opt_b, opt_c, opt_d, correct } = req.body || {};
-  await McqQuestion.findByIdAndUpdate(req.params.id, { question, opt_a, opt_b, opt_c, opt_d, correct });
+  await McqQuestion.findByIdAndUpdate(req.params.id, {
+    question,
+    opt_a,
+    opt_b,
+    opt_c,
+    opt_d,
+    correct
+  });
   res.json({ ok: true });
 });
 
@@ -61,7 +83,10 @@ router.delete('/mcqs/:id', auth('admin'), async (req, res) => {
   res.json({ ok: true });
 });
 
-// Problems
+/* ======================================================
+   PROBLEMS (ROUND 2)
+====================================================== */
+
 router.get('/problems', auth('admin'), async (req, res) => {
   const ps = await ProblemRound2.find().sort({ _id: -1 });
   res.json(ps);
@@ -84,8 +109,12 @@ router.delete('/problems/:id', auth('admin'), async (req, res) => {
   res.json({ ok: true });
 });
 
-// Compute shortlist
+/* ======================================================
+   SHORTLIST COMPUTATION
+====================================================== */
+
 router.post('/compute-shortlist', auth('admin'), async (req, res) => {
+
   const attempts = await AttemptRound1.aggregate([
     { $sort: { created_at: -1 } },
     { $group: { _id: '$team_id', latest: { $first: '$$ROOT' } } }
@@ -104,6 +133,7 @@ router.post('/compute-shortlist', auth('admin'), async (req, res) => {
 
   for (const row of withPct) {
     const qualifies = row.pct >= 0.5 || row.pct >= cutoffPct;
+
     await Shortlist.findOneAndUpdate(
       { team_id: row.team_id },
       { round1_qualified: qualifies ? 1 : 0 },
@@ -112,54 +142,116 @@ router.post('/compute-shortlist', auth('admin'), async (req, res) => {
   }
 
   const subs = await SubmissionRound2.find().distinct('team_id');
+
   for (const teamId of subs) {
     const st = await Shortlist.findOne({ team_id: teamId });
+
     if (st && st.round1_qualified) {
       await Shortlist.findByIdAndUpdate(st._id, { round2_shortlisted: 1 });
     }
   }
+
   res.json({ ok: true, message: 'Shortlist computed' });
 });
 
-// Event Settings
+/* ======================================================
+   EVENT SETTINGS — FIXED ADMIN ROUTE
+====================================================== */
+
+// ★★★ THIS IS THE FIX YOU NEEDED ★★★
 router.get('/event-settings', auth('admin'), async (req, res) => {
   const rows = await EventSetting.find();
   const obj = {};
   rows.forEach(r => obj[r.key] = r.value);
-  res.json(obj);
+
+  res.json({
+    round1: {
+      start_iso: obj.round1_start_iso || "",
+      end_iso: obj.round1_end_iso || ""
+    },
+    round2: {
+      start_iso: obj.round2_start_iso || "",
+      end_iso: obj.round2_end_iso || ""
+    }
+  });
 });
 
+/* --------------------------- SAVE SETTINGS --------------------------- */
+
 router.put('/event-settings', auth('admin'), async (req, res) => {
-  const allowedKeys = ['round1_start_iso', 'round1_end_iso', 'round2_start_iso', 'round2_end_iso'];
+  const allowedKeys = [
+    'round1_start_iso',
+    'round1_end_iso',
+    'round2_start_iso',
+    'round2_end_iso'
+  ];
+
   const payload = {};
-  for (const k of allowedKeys) if (req.body[k] !== undefined) payload[k] = req.body[k];
-  if (Object.keys(payload).length === 0) return res.status(400).json({ error: 'No valid settings provided' });
-  
+  for (const k of allowedKeys)
+    if (req.body[k] !== undefined) payload[k] = req.body[k];
+
+  if (Object.keys(payload).length === 0)
+    return res.status(400).json({ error: 'No valid settings provided' });
+
   try {
-    if (payload.round1_start_iso && !parseISO(payload.round1_start_iso)) return res.status(400).json({ error: 'Invalid round1_start_iso' });
-    if (payload.round1_end_iso && !parseISO(payload.round1_end_iso)) return res.status(400).json({ error: 'Invalid round1_end_iso' });
-    if (payload.round1_start_iso && payload.round1_end_iso && new Date(payload.round1_start_iso) >= new Date(payload.round1_end_iso)) return res.status(400).json({ error: 'R1 start must be before end' });
-    if (payload.round2_start_iso && !parseISO(payload.round2_start_iso)) return res.status(400).json({ error: 'Invalid round2_start_iso' });
+    if (payload.round1_start_iso && !parseISO(payload.round1_start_iso))
+      return res.status(400).json({ error: 'Invalid round1_start_iso' });
+
+    if (payload.round1_end_iso && !parseISO(payload.round1_end_iso))
+      return res.status(400).json({ error: 'Invalid round1_end_iso' });
+
+    if (
+      payload.round1_start_iso &&
+      payload.round1_end_iso &&
+      new Date(payload.round1_start_iso) >= new Date(payload.round1_end_iso)
+    )
+      return res.status(400).json({ error: 'R1 start must be before end' });
+
+    if (payload.round2_start_iso && !parseISO(payload.round2_start_iso))
+      return res.status(400).json({ error: 'Invalid round2_start_iso' });
+
+    // Save settings
     await setSettings(payload);
+
     const r1 = await getRound1Window();
     const r2 = await getRound2Window();
-    res.json({ ok: true, round1: { start_iso: r1.startISO, end_iso: r1.endISO }, round2: { start_iso: r2.startISO, end_iso: r2.endISO }, server_now_iso: nowISO() });
+
+    res.json({
+      ok: true,
+      round1: { start_iso: r1.startISO, end_iso: r1.endISO },
+      round2: { start_iso: r2.startISO, end_iso: r2.endISO },
+      server_now_iso: nowISO()
+    });
+
   } catch (err) {
     console.error('Save settings error:', err);
     res.status(500).json({ error: 'Failed to save settings' });
   }
 });
 
-// Schedule
+/* ======================================================
+   SCHEDULE
+====================================================== */
+
 router.post('/schedule', auth('admin'), async (req, res) => {
   const { round, title, description, date } = req.body || {};
-  await Schedule.create({ round: round || '', title: title || '', description: description || '', date: date || '' });
+  await Schedule.create({
+    round: round || '',
+    title: title || '',
+    description: description || '',
+    date: date || ''
+  });
   res.json({ ok: true });
 });
 
 router.put('/schedule/:id', auth('admin'), async (req, res) => {
   const { round, title, description, date } = req.body || {};
-  await Schedule.findByIdAndUpdate(req.params.id, { round: round || '', title: title || '', description: description || '', date: date || '' });
+  await Schedule.findByIdAndUpdate(req.params.id, {
+    round: round || '',
+    title: title || '',
+    description: description || '',
+    date: date || ''
+  });
   res.json({ ok: true });
 });
 
@@ -169,4 +261,3 @@ router.delete('/schedule/:id', auth('admin'), async (req, res) => {
 });
 
 export default router;
-
