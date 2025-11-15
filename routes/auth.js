@@ -15,12 +15,13 @@ router.post('/register', async (req, res) => {
   }
 
   const teamNameRegex = /^(?!\d+$)[A-Za-z0-9\s]+$/;
-  if (!teamNameRegex.test(team_name)) return res.status(400).json({ error: 'Invalid team name. Must be alphabetical or alphanumeric, cannot be only digits.' });
+  if (!teamNameRegex.test(team_name)) return res.status(400).json({ error: 'Invalid team name.' });
 
-  if (!/^\d{10}$/.test(phone)) return res.status(400).json({ error: 'Invalid phone number. Must be exactly 10 digits.' });
+  if (!/^\d{10}$/.test(phone)) return res.status(400).json({ error: 'Invalid phone number.' });
 
   const nameRegex = /^[A-Za-z\s]+$/;
-  if (![member1, member2, member3].every(m => nameRegex.test(m))) return res.status(400).json({ error: 'Member names must contain only alphabets and spaces.' });
+  if (![member1, member2, member3].every(m => nameRegex.test(m)))
+    return res.status(400).json({ error: 'Member names invalid.' });
 
   try {
     const exists = await User.findOne({ email });
@@ -31,8 +32,19 @@ router.post('/register', async (req, res) => {
     await User.create({ email, password_hash: hash, role: 'team', team_id: team._id });
     await Shortlist.create({ team_id: team._id });
 
-    const token = signToken({ id: 0, role: 'team', team_id: team._id.toString(), email });
-    return res.json({ token });
+    const token = signToken({
+      id: 0,
+      role: "team",
+      team_id: team._id.toString(),
+      email
+    });
+
+    return res.json({
+      token,
+      role: "team",
+      team_id: team._id.toString()
+    });
+
   } catch (err) {
     console.error('Register error:', err);
     return res.status(400).json({ error: err.message });
@@ -43,9 +55,22 @@ router.post('/login', async (req, res) => {
   const { email, password } = req.body || {};
   try {
     const u = await User.findOne({ email });
-    if (!u || !bcrypt.compareSync(password, u.password_hash)) return res.status(401).json({ error: 'Invalid credentials' });
-    const token = signToken({ id: u._id.toString(), role: u.role, team_id: u.team_id?.toString(), email: u.email });
-    res.json({ token, role: u.role });
+    if (!u || !bcrypt.compareSync(password, u.password_hash))
+      return res.status(401).json({ error: 'Invalid credentials' });
+
+    const token = signToken({
+      id: u._id.toString(),
+      role: u.role,
+      team_id: u.team_id?.toString(),
+      email: u.email
+    });
+
+    res.json({
+      token,
+      role: u.role,
+      team_id: u.team_id?.toString()
+    });
+
   } catch (err) {
     console.error('Login error:', err);
     res.status(500).json({ error: 'Login failed' });
@@ -53,4 +78,3 @@ router.post('/login', async (req, res) => {
 });
 
 export default router;
-
