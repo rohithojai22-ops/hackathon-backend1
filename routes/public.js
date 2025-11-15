@@ -4,28 +4,25 @@ import { getRound1Window, getRound2Window, nowISO } from '../utils/helpers.js';
 import Schedule from '../models/Schedule.js';
 import Team from '../models/Team.js';
 import AttemptRound1 from '../models/AttemptRound1.js';
-
+import EventSetting from "../models/EventSetting.js";
 const router = express.Router();
 
 router.get('/server-time', (req, res) => res.json({ now_iso: nowISO() }));
 
-router.get('/event-settings', async (req, res) => {
+rrouter.get('/event-settings', async (req, res) => {
   try {
-    const r1 = await getRound1Window();
-    const r2 = await getRound2Window();
+    const rows = await EventSetting.find();
+    const obj = {};
 
-    res.json({
-      round1_start_iso: r1.startISO || "",
-      round1_end_iso: r1.endISO || "",
-      round2_start_iso: r2.startISO || "",
-      round2_end_iso: r2.endISO || "",
-      server_now_iso: nowISO(),
-    });
+    rows.forEach(r => obj[r.key] = r.value);
+
+    res.json(obj);
   } catch (err) {
     console.error("Public event-settings error:", err);
-    res.status(500).json({ error: "Failed to load event settings" });
+    res.status(500).json({ error: "Failed to load settings" });
   }
 });
+
 
 
 router.get('/schedule', async (req, res) => {
