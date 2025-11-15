@@ -121,19 +121,24 @@ router.post('/compute-shortlist', auth('admin'), async (req, res) => {
   res.json({ ok: true, message: 'Shortlist computed' });
 });
 
-// Event Settings (ADMIN VIEW FIX)
+// ADMIN EVENT SETTINGS — correct format for frontend
 router.get('/event-settings', auth('admin'), async (req, res) => {
   const rows = await EventSetting.find();
   const obj = {};
   rows.forEach(r => obj[r.key] = r.value);
 
   res.json({
-    round1_start_iso: obj.round1_start_iso || "",
-    round1_end_iso: obj.round1_end_iso || "",
-    round2_start_iso: obj.round2_start_iso || "",
-    round2_end_iso: obj.round2_end_iso || ""
+    round1: {
+      start_iso: obj.round1_start_iso || "",
+      end_iso: obj.round1_end_iso || ""
+    },
+    round2: {
+      start_iso: obj.round2_start_iso || "",
+      end_iso: obj.round2_end_iso || ""
+    }
   });
 });
+
 
 
 router.put('/event-settings', auth('admin'), async (req, res) => {
